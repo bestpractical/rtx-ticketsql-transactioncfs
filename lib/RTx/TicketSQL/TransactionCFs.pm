@@ -4,6 +4,22 @@ package RTx::TicketSQL::TransactionCFs;
 
 our $VERSION = 20130628;
 
+{
+    package RT::Tickets;
+    require RT::Transaction;
+    our (%FIELD_METADATA, %LOWER_CASE_FIELDS, %JOIN_ALIAS_FOR_LOOKUP_TYPE);
+
+    # TxnCF.Foo and TransactionCF.Foo
+    $FIELD_METADATA{TxnCF}          = [ CUSTOMFIELD => 'Transaction' ];
+    $FIELD_METADATA{TransactionCF}  = [ CUSTOMFIELD => 'Transaction' ];
+
+    $LOWER_CASE_FIELDS{lc $_} = $_ for qw(TxnCF TransactionCF);
+
+    # How to join CFs to Transactions (via _CustomFieldJoin)
+    $JOIN_ALIAS_FOR_LOOKUP_TYPE{ RT::Transaction->CustomFieldLookupType }
+        = sub { $_[0]->JoinTransactions };
+}
+
 =head1 NAME
 
 RTx-TicketSQL-TransactionCFs - Adds searching of Transaction CFs to TicketSQL in RT
