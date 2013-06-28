@@ -1,0 +1,27 @@
+<%ARGS>
+%queues => ()
+</%ARGS>
+<%init>
+my $CustomFields = RT::CustomFields->new( $session{'CurrentUser'} );
+$CustomFields->LimitToLookupType( RT::Transaction->CustomFieldLookupType );
+$CustomFields->LimitToObjectId(0);
+
+foreach my $name (keys %queues) {
+    my $queue = RT::Queue->new($session{'CurrentUser'});
+    $queue->Load($name);
+    $CustomFields->LimitToObjectId($queue->Id) if $queue->Id;
+}
+$CustomFields->ApplySortOrder;
+
+my $has_cf = $CustomFields->First ? 1 : 0;
+$CustomFields->GotoFirstItem;
+</%init>
+% if ($has_cf) {
+<tr class="separator">
+  <td colspan="3" style="position: relative">
+    <hr>
+    <em style="position: absolute; right: 0"><% loc("Transaction CFs") %></em>
+  </td>
+</tr>
+% }
+<& PickCFs, %ARGS, TicketSQLField => 'TransactionCF', CustomFields => $CustomFields &>
