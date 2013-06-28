@@ -24,6 +24,21 @@ our $VERSION = 20130628;
 
 RTx-TicketSQL-TransactionCFs - Adds searching of Transaction CFs to TicketSQL in RT
 
+=head1 DESCRIPTION
+
+When installed, TicketSQL's syntax is extended to support the follow
+constructs:
+
+    TransactionCF.{Name of your CF} = 'Foo'
+    TxnCF.{Name} = 'Bar'
+
+All operators that can be used for ticket custom fields in TicketSQL
+(C<CF.{Name}>) may also be used for transaction CFs.
+
+Transaction CFs are also shown in the query builder.  Globally applied fields
+are always shown, and per-queue fields are shown when there is an appropriate
+Queue condition already present.  This mirrors the behaviour of ticket CFs.
+
 =head1 INSTALLATION 
 
 =over
