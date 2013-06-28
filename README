@@ -17,6 +17,8 @@ DESCRIPTION
     appropriate Queue condition already present. This mirrors the behaviour
     of ticket CFs.
 
+    Requires RT 4.0.14 or higher.
+
 INSTALLATION
     "perl Makefile.PL"
     "make"

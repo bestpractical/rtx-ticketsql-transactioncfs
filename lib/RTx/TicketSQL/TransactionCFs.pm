@@ -39,6 +39,8 @@ Transaction CFs are also shown in the query builder.  Globally applied fields
 are always shown, and per-queue fields are shown when there is an appropriate
 Queue condition already present.  This mirrors the behaviour of ticket CFs.
 
+B<Requires RT 4.0.14 or higher.>
+
 =head1 INSTALLATION 
 
 =over
