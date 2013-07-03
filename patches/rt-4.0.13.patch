@@ -1,4 +1,4 @@
-From 1ea10ce041b71633d1c7b5bcfe2ed109b977a05e Mon Sep 17 00:00:00 2001
+From e37801b72138e97fd23ad9e2a6e95d8ef96032d5 Mon Sep 17 00:00:00 2001
 From: Thomas Sibley <trs@bestpractical.com>
 Date: Wed, 6 Feb 2013 17:25:22 -0800
 Subject: [PATCH 01/12] Allow CustomFieldLookupType to be called as a class
@@ -10,7 +10,7 @@ Subject: [PATCH 01/12] Allow CustomFieldLookupType to be called as a class
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/lib/RT/Record.pm b/lib/RT/Record.pm
-index 61b66d5..1597784 100644
+index a58979e..9e44639 100644
 --- a/lib/RT/Record.pm
 +++ b/lib/RT/Record.pm
 @@ -1616,7 +1616,7 @@ Returns the path RT uses to figure out which custom fields apply to this object.
@@ -26,7 +26,7 @@ index 61b66d5..1597784 100644
 1.8.3.1
 
 
-From 93b4f27f47c51f4dcec0338ea8afcb76fc62b1a5 Mon Sep 17 00:00:00 2001
+From 7e5b1ccb0955d8c730d99a6a14b6cc05ec4b6960 Mon Sep 17 00:00:00 2001
 From: Kevin Falcone <falcone@bestpractical.com>
 Date: Mon, 30 Jan 2012 17:27:49 -0500
 Subject: [PATCH 02/12] Add an ObjectTypeFromlookupType method and document
@@ -87,7 +87,7 @@ index a69c6f4..11701b9 100644
 1.8.3.1
 
 
-From 8031dcf0d8d4e630e8ee4d69478b933aa78d78cf Mon Sep 17 00:00:00 2001
+From 5088509209ccc5ecdfe9e905959c3f4b096cb5ae Mon Sep 17 00:00:00 2001
 From: Thomas Sibley <trs@bestpractical.com>
 Date: Wed, 26 Jun 2013 16:06:31 -0700
 Subject: [PATCH 03/12] ObjectType/RecordTypeFromLookupType as class methods
@@ -176,7 +176,7 @@ index 11701b9..0211815 100644
 1.8.3.1
 
 
-From 5b6f9b9513114ce2aee99f495996b2f333b956b8 Mon Sep 17 00:00:00 2001
+From f0ea5922e8c14114e3d1698f526634acff567dff Mon Sep 17 00:00:00 2001
 From: Thomas Sibley <trs@bestpractical.com>
 Date: Wed, 26 Jun 2013 22:56:11 -0700
 Subject: [PATCH 04/12] Refactor part of LimitToGlobalOrObjectId into
@@ -245,7 +245,7 @@ index 017018e..1ea75da 100644
 1.8.3.1
 
 
-From 5a2c4002c0aa30111890b2f8dcef395886eedd76 Mon Sep 17 00:00:00 2001
+From a9ae79a1ee31dff81b9712493da1cf9bbd39f488 Mon Sep 17 00:00:00 2001
 From: Kevin Falcone <falcone@bestpractical.com>
 Date: Mon, 30 Jan 2012 17:31:47 -0500
 Subject: [PATCH 05/12] Rename some variables that will become confusing.
@@ -528,7 +528,7 @@ index 41aa313..679186b 100644
 1.8.3.1
 
 
-From 05840351010103a861e883a76ff863bb1cfb3ae3 Mon Sep 17 00:00:00 2001
+From eb7dff164d3a37da0da73ca414c37fb91f42c4ba Mon Sep 17 00:00:00 2001
 From: Thomas Sibley <trs@bestpractical.com>
 Date: Thu, 27 Jun 2013 15:25:46 -0700
 Subject: [PATCH 06/12] Decipher TicketSQL CF identifiers using a passed in
@@ -551,7 +551,6 @@ The CF lookup behaviour of CF.Queue.{CFName} changes slightly due to
 changes in which custom fields API is used.  Most notably, such syntax
 previously exhibited the following behaviour but no longer does:
 
-    • CF names were searched case insensitively.
     • Disabled CFs could be found if no enabled CFs matched.
     • The existence of multiple matching CFs with the same name (& within
       the same queue) was ignored; the first was the only one used.
@@ -559,16 +558,25 @@ previously exhibited the following behaviour but no longer does:
 As CF.Queue.{CFName} is fairly arcane syntax, these changes shouldn't
 affect most usage of TicketSQL.  It is unlikely that anyone using the
 extended syntax is intentionally relying on any of the discontinued
-behaviour noted above.
+behaviour noted above.  Disabled CFs, even if found, are eliminated from
+results by later code.  The two behaviour changes are effectively bug
+fixes.
+
+A case-sensitivity difference between CF.{Name} and CF.Queue.{Name} is
+preserved by checking which syntax was used.  This is bending over
+backwards solely for the sake of compatibility within the 4.0 series.
+It is conceivable that someone is relying on it, knowingly or not, and
+it is easy enough to replicate.  In 4.2, we should remove this
+distinction.
 ---
- lib/RT/Tickets.pm | 58 ++++++++++++++++++++++++++++++++++++-------------------
- 1 file changed, 38 insertions(+), 20 deletions(-)
+ lib/RT/Tickets.pm | 55 ++++++++++++++++++++++++++++++++++---------------------
+ 1 file changed, 34 insertions(+), 21 deletions(-)
 
 diff --git a/lib/RT/Tickets.pm b/lib/RT/Tickets.pm
-index 679186b..102b38d 100644
+index 679186b..3ef735c 100644
 --- a/lib/RT/Tickets.pm
 +++ b/lib/RT/Tickets.pm
-@@ -1314,33 +1314,49 @@ sub _WatcherMembershipLimit {
+@@ -1314,33 +1314,44 @@ sub _WatcherMembershipLimit {
  
  Try and turn a CF descriptor into (cfid, cfname) object pair.
  
@@ -616,14 +624,10 @@ index 679186b..102b38d 100644
 +    if ( $field =~ /\D/ ) {
 +        $object ||= '';
          my $cfs = RT::CustomFields->new( $self->CurrentUser );
-         $cfs->Limit( FIELD => 'Name', VALUE => $field );
+-        $cfs->Limit( FIELD => 'Name', VALUE => $field );
 -        $cfs->LimitToLookupType('RT::Queue-RT::Ticket');
++        $cfs->Limit( FIELD => 'Name', VALUE => $field, ($applied_to ? (CASESENSITIVE => 0) : ()) );
 +        $cfs->LimitToLookupType($lookuptype);
-+        # XXX Compare to RT::CustomField::LoadByNameAndQueue, previously used
-+        # when a specific applied to object (queue) was specified.
-+        #   - Explicit case insensitivity
-+        #   - Disabled OK
-+        #   - No duplicate check
 +
 +        if ($applied_to) {
 +            $cfs->SetContextObject($applied_to);
@@ -632,7 +636,7 @@ index 679186b..102b38d 100644
  
          # if there is more then one field the current user can
          # see with the same name then we shouldn't return cf object
-@@ -1353,9 +1369,11 @@ sub _CustomFieldDecipher {
+@@ -1353,9 +1364,11 @@ sub _CustomFieldDecipher {
      else {
          $cf = RT::CustomField->new( $self->CurrentUser );
          $cf->Load( $field );
@@ -645,7 +649,7 @@ index 679186b..102b38d 100644
  }
  
  =head2 _CustomFieldJoin
-@@ -1477,8 +1495,8 @@ sub _CustomFieldLimit {
+@@ -1477,8 +1490,8 @@ sub _CustomFieldLimit {
  
      # For our sanity, we can only limit on one queue at a time
  
@@ -656,7 +660,7 @@ index 679186b..102b38d 100644
      $cfid = $cf ? $cf->id  : 0 ;
  
  # If we're trying to find custom fields that don't match something, we
-@@ -1574,7 +1592,7 @@ sub _CustomFieldLimit {
+@@ -1574,7 +1587,7 @@ sub _CustomFieldLimit {
  
      my $single_value = !$cf || !$cfid || $cf->SingleValue;
  
@@ -665,7 +669,7 @@ index 679186b..102b38d 100644
  
      if ( $null_op && !$column ) {
          # IS[ NOT] NULL without column is the same as has[ no] any CF value,
-@@ -1952,8 +1970,8 @@ sub OrderByCols {
+@@ -1952,8 +1965,8 @@ sub OrderByCols {
              }
              push @res, { %$row, ALIAS => $users, FIELD => $subkey };
         } elsif ( defined $meta->[0] && $meta->[0] eq 'CUSTOMFIELD' ) {
@@ -680,7 +684,7 @@ index 679186b..102b38d 100644
 1.8.3.1
 
 
-From 333337eb7269ed0e3dbc348c6a7e251a45a9bef4 Mon Sep 17 00:00:00 2001
+From d39521de41ec430ddcaab92f7efbad0d93de77ac Mon Sep 17 00:00:00 2001
 From: Thomas Sibley <trs@bestpractical.com>
 Date: Wed, 26 Jun 2013 16:47:43 -0700
 Subject: [PATCH 07/12] Refactor _CustomFieldJoin to take a LookupType
@@ -699,10 +703,10 @@ CFs which may want to be searched.
  1 file changed, 16 insertions(+), 5 deletions(-)
 
 diff --git a/lib/RT/Tickets.pm b/lib/RT/Tickets.pm
-index 102b38d..709f985 100644
+index 3ef735c..0afe20b 100644
 --- a/lib/RT/Tickets.pm
 +++ b/lib/RT/Tickets.pm
-@@ -1382,8 +1382,14 @@ Factor out the Join of custom fields so we can use it for sorting too
+@@ -1377,8 +1377,14 @@ Factor out the Join of custom fields so we can use it for sorting too
  
  =cut
  
@@ -718,7 +722,7 @@ index 102b38d..709f985 100644
      # Perform one Join per CustomField
      if ( $self->{_sql_object_cfv_alias}{$cfkey} ||
           $self->{_sql_cf_alias}{$cfkey} )
-@@ -1392,11 +1398,15 @@ sub _CustomFieldJoin {
+@@ -1387,11 +1393,15 @@ sub _CustomFieldJoin {
                   $self->{_sql_cf_alias}{$cfkey} );
      }
  
@@ -735,7 +739,7 @@ index 102b38d..709f985 100644
              FIELD1 => 'id',
              TABLE2 => 'ObjectCustomFieldValues',
              FIELD2 => 'ObjectId',
-@@ -1434,7 +1444,7 @@ sub _CustomFieldJoin {
+@@ -1429,7 +1439,7 @@ sub _CustomFieldJoin {
              LEFTJOIN        => $CFs,
              ENTRYAGGREGATOR => 'AND',
              FIELD           => 'LookupType',
@@ -744,7 +748,7 @@ index 102b38d..709f985 100644
          );
          $self->SUPER::Limit(
              LEFTJOIN        => $CFs,
-@@ -1453,15 +1463,16 @@ sub _CustomFieldJoin {
+@@ -1448,15 +1458,16 @@ sub _CustomFieldJoin {
          $self->SUPER::Limit(
              LEFTJOIN        => $ObjectCFs,
              FIELD           => 'ObjectId',
@@ -767,7 +771,7 @@ index 102b38d..709f985 100644
 1.8.3.1
 
 
-From 55ce2de15a2472876066b473a0598fc6ecca2c48 Mon Sep 17 00:00:00 2001
+From daf0a6c18f1ef822349e1d89d12be827b356d02e Mon Sep 17 00:00:00 2001
 From: Thomas Sibley <trs@bestpractical.com>
 Date: Thu, 27 Jun 2013 15:50:34 -0700
 Subject: [PATCH 08/12] Refactor _CustomFieldLimit to use a LookupType in
@@ -782,7 +786,7 @@ _CustomFieldLimit happens to be recursive for IP and Date searches).
  1 file changed, 18 insertions(+), 14 deletions(-)
 
 diff --git a/lib/RT/Tickets.pm b/lib/RT/Tickets.pm
-index 709f985..3b614e6 100644
+index 0afe20b..b2480b0 100644
 --- a/lib/RT/Tickets.pm
 +++ b/lib/RT/Tickets.pm
 @@ -142,9 +142,9 @@ our %FIELD_METADATA = (
@@ -798,7 +802,7 @@ index 709f985..3b614e6 100644
      Updated          => [ 'TRANSDATE', ], #loc_left_pair
      RequestorGroup   => [ 'MEMBERSHIPFIELD' => 'Requestor', ], #loc_left_pair
      CCGroup          => [ 'MEMBERSHIPFIELD' => 'Cc', ], #loc_left_pair
-@@ -1502,12 +1502,16 @@ use Regexp::Common::net::CIDR;
+@@ -1497,12 +1497,16 @@ use Regexp::Common::net::CIDR;
  sub _CustomFieldLimit {
      my ( $self, $_field, $op, $value, %rest ) = @_;
  
@@ -816,7 +820,7 @@ index 709f985..3b614e6 100644
      $cfid = $cf ? $cf->id  : 0 ;
  
  # If we're trying to find custom fields that don't match something, we
-@@ -1603,13 +1607,13 @@ sub _CustomFieldLimit {
+@@ -1598,13 +1602,13 @@ sub _CustomFieldLimit {
  
      my $single_value = !$cf || !$cfid || $cf->SingleValue;
  
@@ -832,7 +836,7 @@ index 709f985..3b614e6 100644
          $self->_OpenParen;
          $self->_SQLLimit(
              ALIAS    => $ObjectCFs,
-@@ -1635,11 +1639,11 @@ sub _CustomFieldLimit {
+@@ -1630,11 +1634,11 @@ sub _CustomFieldLimit {
          $self->_OpenParen;
          if ( $op !~ /NOT|!=|<>/i ) { # positive equation
              $self->_CustomFieldLimit(
@@ -846,7 +850,7 @@ index 709f985..3b614e6 100644
                  SUBKEY          => $rest{'SUBKEY'}. '.LargeContent',
                  ENTRYAGGREGATOR => 'AND',
              ); 
-@@ -1647,20 +1651,20 @@ sub _CustomFieldLimit {
+@@ -1642,20 +1646,20 @@ sub _CustomFieldLimit {
              # estimations and scan less rows
  # have to disable this tweak because of ipv6
  #            $self->_CustomFieldLimit(
@@ -871,7 +875,7 @@ index 709f985..3b614e6 100644
                  SUBKEY          => $rest{'SUBKEY'}. '.LargeContent',
                  ENTRYAGGREGATOR => 'OR',
              );  
-@@ -1672,7 +1676,7 @@ sub _CustomFieldLimit {
+@@ -1667,7 +1671,7 @@ sub _CustomFieldLimit {
      } 
      elsif ( !$negative_op || $single_value ) {
          $cfkey .= '.'. $self->{'_sql_multiple_cfs_index'}++ if !$single_value && !$range_op;
@@ -880,7 +884,7 @@ index 709f985..3b614e6 100644
  
          $self->_OpenParen;
  
-@@ -1841,7 +1845,7 @@ sub _CustomFieldLimit {
+@@ -1836,7 +1840,7 @@ sub _CustomFieldLimit {
      }
      else {
          $cfkey .= '.'. $self->{'_sql_multiple_cfs_index'}++;
@@ -893,7 +897,7 @@ index 709f985..3b614e6 100644
 1.8.3.1
 
 
-From 09ae727d7729d71a198fdf55bd00bc7695f4ea12 Mon Sep 17 00:00:00 2001
+From be665348b78679d0a31900afb788517f9a10fda6 Mon Sep 17 00:00:00 2001
 From: Thomas Sibley <trs@bestpractical.com>
 Date: Thu, 27 Jun 2013 16:40:57 -0700
 Subject: [PATCH 09/12] Fix horrendous load order of shredder tests
@@ -931,7 +935,7 @@ index 7be9513..d5a0589 100644
 1.8.3.1
 
 
-From dc545c3ce9065f44aba13baf6dc2d682265d8295 Mon Sep 17 00:00:00 2001
+From 94aeca9f47f7923b8fe82c02e02d7f9e892716a7 Mon Sep 17 00:00:00 2001
 From: Thomas Sibley <trs@bestpractical.com>
 Date: Fri, 28 Jun 2013 10:10:49 -0700
 Subject: [PATCH 10/12] Add callbacks for before and after the query builder
@@ -961,7 +965,7 @@ index 7d8a4e9..a15a21a 100644
 1.8.3.1
 
 
-From 7928d2d0d24c173ff3345abc9fb9bf5e251931e6 Mon Sep 17 00:00:00 2001
+From 565b40eaf184d846c20da315b5247fd7c86c2e17 Mon Sep 17 00:00:00 2001
 From: Thomas Sibley <trs@bestpractical.com>
 Date: Fri, 28 Jun 2013 10:11:38 -0700
 Subject: [PATCH 11/12] PickTicketCFs refactored from the now-generic PickCFs
@@ -1076,7 +1080,7 @@ index a15a21a..6b01aa2 100644
 1.8.3.1
 
 
-From ef1eae9b27d1f0e2e94bd4cfc357602257b7aae1 Mon Sep 17 00:00:00 2001
+From 228451ce0c60bac20bf329d0896c7312db3af318 Mon Sep 17 00:00:00 2001
 From: Thomas Sibley <trs@bestpractical.com>
 Date: Fri, 28 Jun 2013 12:14:27 -0700
 Subject: [PATCH 12/12] Parse FooCF.{Bar} when adding a TicketSQL clause in the
